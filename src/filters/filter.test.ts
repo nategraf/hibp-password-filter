@@ -1,11 +1,29 @@
 import { MutableFilter } from './filter'
 import { SetFilter } from './set'
-import { BloomFilter } from './bloom'
+import { MutableBloomFilter } from './bloom'
+import { BufferStorage } from './buffer'
 
 const testFilters = {
   'SetFilter': () => { return new SetFilter() },
-  'BloomFilter{m: 1024, k: 3}': () => { return new BloomFilter(1024, 3) },
+  'MutableBloomFilter{m: 1024, k: 3}': () => { return new MutableBloomFilter(1024, 3, new BufferStorage(1024/8)) },
 }
+
+// Estimator confidence in number of standard deviations.
+// 3.3 ~= 99.9% confidence (i.e. test may return false result 1 in 1000 times)
+const TEST_ESTIMATOR_CONFIDENCE = 3.3
+// Maximum number of trials to run when estimating false positive rate.
+const TEST_ESTIMATOR_MAX_TRIALS = 1000
+
+expect.extend({
+  toBeWithinTolerance(observed: number, expected: number, tolerance: number) {
+    const pass = Math.abs(observed - expected) <= tolerance
+    return {
+      message: () =>
+        `expected ${observed} to be ${pass ? 'outside' : 'inside'} range ${expected} +- ${tolerance}`,
+      pass,
+    }
+  }
+})
 
 for (const [key, constructor] of Object.entries(testFilters)) {
   describe(key, () => {
@@ -23,10 +41,6 @@ for (const [key, constructor] of Object.entries(testFilters)) {
         expect(await filter.has(Buffer.from("penguin"))).toBe(true)
         expect(await filter.has(Buffer.from("horse"))).toBe(true)
         expect(await filter.has(Buffer.from("mongoose"))).toBe(true)
-      })
-
-      it('correctly reports exclusion', async () => {
-        expect(await filter.has(Buffer.from("zebra"))).toBe(false)
       })
     })
 
@@ -47,11 +61,33 @@ for (const [key, constructor] of Object.entries(testFilters)) {
           }
         })
 
-        it('correctly reports exclusion', async () => {
-          expect(await filter.has(Buffer.from(`Excluded item`))).toBe(false)
+        it('reports an error rate value in [0.0, 1.0]', () => {
+          const epsilon = filter.epsilon()
+          expect(epsilon).toBeLessThanOrEqual(1.0)
+          expect(epsilon).toBeGreaterThanOrEqual(0.0)
+        })
+
+        it('reports exclusion with error rate close to epsilon', async () => {
+          // Using the frequentist estimator of true probability for a Bernoulli process.
+          // https://en.wikipedia.org/wiki/Checking_whether_a_coin_is_fair#Estimator_of_true_probability
+          const epsilon = filter.epsilon()
+          const trials = TEST_ESTIMATOR_MAX_TRIALS
+          const tolerance = Math.max(
+            TEST_ESTIMATOR_CONFIDENCE * Math.sqrt(epsilon * (1 - epsilon) / trials),
+            1/trials // Impossible to measure more accurately than the result of 1 trial.
+          )
+
+          let positives = 0
+          for (let i = 0; i < trials; i++) {
+            if (await filter.has(Buffer.from(`Excluded item ${i}`))) {
+              positives++
+            }
+          }
+
+          const estimate = positives / trials
+          expect(estimate).toBeWithinTolerance(epsilon, tolerance)
         })
       })
     }
   })
-
 }

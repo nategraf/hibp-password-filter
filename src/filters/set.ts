@@ -11,11 +11,11 @@ export class SetFilter implements MutableFilter {
     this.set = new Set()
   }
 
-  public async add(element: Buffer) {
+  async add(element: Buffer) {
     this.set.add(this.hash(element))
   }
 
-  public async has(element: Buffer): Promise<boolean> {
+  async has(element: Buffer): Promise<boolean> {
     return this.set.has(this.hash(element))
   }
 
@@ -23,7 +23,7 @@ export class SetFilter implements MutableFilter {
    * False positive error rate is based on the SHA1 collision resistance, which
    * makes it effectively zero.
    */
-  public epsilon = (): number => 0
+  epsilon = (): number => 0
 
   private hash(element: Buffer) {
     return crypto.createHash('sha1').update(element).digest().readUInt32BE()
