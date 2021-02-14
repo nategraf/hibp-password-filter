@@ -17,6 +17,8 @@ export interface MutableFilter extends Filter {
  * @remarks Used to abstract whether the filter is in memory, on disk, or otherwise stored.
  */
 export interface Storage {
+  readonly size: number
+
   byte(index: number): Promise<number>
 }
 

@@ -1,20 +1,25 @@
+import { BufferStorage } from './buffer'
 import { Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
 export class BloomFilter<S extends Storage = Storage> implements Filter {
+  protected readonly storage: S | MutableStorage
   protected n: number = 0
 
   constructor(
     readonly m: number,
     readonly k: number,
-    protected readonly storage: S,
+    storage?: S,
     readonly seed?: Buffer
   ) {
     if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
       throw new Error("k value must be an integer in interval [1, 255]")
     }
-    // TODO: Check for storage size?
-    // this.storage = new Store(Math.ceil(this.m/8))
+    // Default to creating a new memory buffer to use as storage.
+    this.storage = storage ?? new BufferStorage(Math.ceil(this.m/8))
+    if (this.storage.size * 8 < this.m) {
+      throw new Error("storage object is not large enough")
+    }
   }
 
   async has(element: Buffer): Promise<boolean> {
