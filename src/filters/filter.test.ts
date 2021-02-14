@@ -5,7 +5,7 @@ import { BufferStorage } from './buffer'
 
 const testFilters = {
   'SetFilter': () => { return new SetFilter() },
-  'MutableBloomFilter{m: 1024, k: 3}': () => { return new MutableBloomFilter(1024, 3, new BufferStorage(1024/8)) },
+  'MutableBloomFilter{m: 1024, k: 3}': () => { return new MutableBloomFilter(1024, 3) },
 }
 
 // Estimator confidence in number of standard deviations.
