@@ -20,8 +20,14 @@ export interface Storage {
   readonly size: number
 
   byte(index: number): Promise<number>
+  read(index: number, length: number): Promise<Buffer>
 }
 
 export interface MutableStorage extends Storage {
   setByte(index: number, value: number): Promise<void>
+  write(index: number, value: Buffer): Promise<void>
+}
+
+export interface Allocator<S extends Storage> {
+  alloc(size: number): S
 }

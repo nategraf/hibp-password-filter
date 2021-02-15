@@ -4,8 +4,8 @@ import { MutableBloomFilter } from './bloom'
 import { BufferStorage } from './buffer'
 
 const testFilters = {
-  'SetFilter': () => { return new SetFilter() },
-  'MutableBloomFilter{m: 1024, k: 3}': () => { return new MutableBloomFilter(1024, 3) },
+  'SetFilter': () => new SetFilter(),
+  'MutableBloomFilter{m: 1024, k: 3}': () => MutableBloomFilter.create(1024, 3),
 }
 
 // Estimator confidence in number of standard deviations.
@@ -31,7 +31,7 @@ for (const [key, constructor] of Object.entries(testFilters)) {
       let filter: MutableFilter
 
       beforeAll(async () => {
-        filter = constructor()
+        filter = await constructor()
         await filter.add(Buffer.from("penguin"))
         await filter.add(Buffer.from("horse"))
         await filter.add(Buffer.from("mongoose"))
@@ -49,7 +49,7 @@ for (const [key, constructor] of Object.entries(testFilters)) {
 
       describe(`when loaded with ${load} elements`,  () => {
         beforeAll(async () => {
-          filter = constructor()
+          filter = await constructor()
           for (let i = 0; i < load; i++) {
             await filter.add(Buffer.from(`Item ${i}`))
           }

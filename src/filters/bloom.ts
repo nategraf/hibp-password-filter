@@ -1,24 +1,21 @@
 import { BufferStorage } from './buffer'
-import { Filter, MutableFilter, MutableStorage, Storage } from './filter'
+import { Allocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
 export class BloomFilter<S extends Storage = Storage> implements Filter {
-  protected readonly storage: S | MutableStorage
+  // Layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
   protected n: number = 0
 
-  constructor(
+  protected constructor(
+    protected readonly storage: S,
     readonly m: number,
     readonly k: number,
-    storage?: S,
-    readonly seed?: Buffer
   ) {
-    if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
-      throw new Error("k value must be an integer in interval [1, 255]")
+    if (this.m < 0 || this.m % 1 !== 0) {
+      throw new Error("m value must be an integer in interval [1, 2^32)")
     }
-    // Default to creating a new memory buffer to use as storage.
-    this.storage = storage ?? new BufferStorage(Math.ceil(this.m/8))
-    if (this.storage.size * 8 < this.m) {
-      throw new Error("storage object is not large enough")
+    if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
+      throw new Error("k value must be an integer in interval [1, 256)")
     }
   }
 
@@ -39,15 +36,13 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
   }
 
   async bit(index: number): Promise<number> {
-    return (await this.storage.byte(Math.floor(index/8))) & (1 << (index % 8))
+    const [i, j] = this.storageIndex(index)
+    return (await this.storage.byte(i)) & (1 << j)
   }
 
   protected hash(element: Buffer, index: number): number {
-    // Produce a SHA1 hash of { seed || index || element }
+    // Produce a SHA1 hash of { index || element }
     const hash = crypto.createHash('sha1')
-    if (this.seed) {
-      hash.update(this.seed)
-    }
     hash.update(Buffer.from([index]))
     hash.update(element)
     const digest = hash.digest()
@@ -56,20 +51,49 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     // FIXME: Current implementation can introduce error for large m.
     return digest.readUInt32BE() % this.m
   }
+
+  protected storageIndex(bitIndex: number): [number, number] {
+    return [Math.floor(bitIndex / 8) + 12, bitIndex % 8]
+  }
+
+  protected async readN(): Promise<void> {
+    this.n = (await this.storage.read(0, 4)).readUInt32BE()
+  }
 }
 
-export class MutableBloomFilter extends BloomFilter<MutableStorage> {
+export class MutableBloomFilter extends BloomFilter<MutableStorage> implements MutableFilter {
+  static async create(m: number, k: number, allocator: Allocator<MutableStorage> = BufferStorage): Promise<MutableBloomFilter> {
+    const size = Math.ceil(m/8) + 12
+    const storage = allocator.alloc(size)
+    const filter = new MutableBloomFilter(storage, m, k)
+    
+    // Write the parameter block to storage.
+    const buffer = Buffer.alloc(5)
+    buffer.writeUInt32BE(m)
+    buffer.writeUInt8(k, 4)
+    await storage.write(4, buffer)
+
+    return filter
+  }
+
   async add(element: Buffer) {
     for (let i = 0; i < this.k; i++) {
       await this.setBit(this.hash(element, i))
     }
     this.n++
+    await this.writeN()
   }
 
   protected async setBit(index: number) {
-    const offset = Math.floor(index/8)
-    await this.storage.setByte(offset,
-      (await this.storage.byte(offset)) | (1 << (index % 8))
+    const [i, j] = this.storageIndex(index)
+    await this.storage.setByte(i,
+      (await this.storage.byte(i)) | (1 << (j % 8))
     )
+  }
+
+  protected async writeN(): Promise<void> {
+    const buffer = Buffer.alloc(4)
+    buffer.writeUInt32BE(this.n)
+    await this.storage.write(0, buffer)
   }
 }
