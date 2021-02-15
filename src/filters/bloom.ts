@@ -2,12 +2,15 @@ import { BufferStorage } from './buffer'
 import { Allocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
+/**
+ *
+ * @remarks Storage layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
+ */
 export class BloomFilter<S extends Storage = Storage> implements Filter {
-  // Layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
-  protected n: number = 0
 
   protected constructor(
     protected readonly storage: S,
+    protected n: number,
     readonly m: number,
     readonly k: number,
   ) {
@@ -17,6 +20,14 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
       throw new Error("k value must be an integer in interval [1, 256)")
     }
+  }
+
+  static async from(storage: Storage): Promise<BloomFilter> {
+    const parameters = await storage.read(0, 12)
+    const n = parameters.readUInt32BE(0)
+    const m = parameters.readUInt32BE(4)
+    const k = parameters.readUInt8(8)
+    return new BloomFilter(storage, n, m, k)
   }
 
   async has(element: Buffer): Promise<boolean> {
@@ -65,7 +76,7 @@ export class MutableBloomFilter extends BloomFilter<MutableStorage> implements M
   static async create(m: number, k: number, allocator: Allocator<MutableStorage> = BufferStorage): Promise<MutableBloomFilter> {
     const size = Math.ceil(m/8) + 12
     const storage = allocator.alloc(size)
-    const filter = new MutableBloomFilter(storage, m, k)
+    const filter = new MutableBloomFilter(storage, 0, m, k)
     
     // Write the parameter block to storage.
     const buffer = Buffer.alloc(5)
@@ -74,6 +85,14 @@ export class MutableBloomFilter extends BloomFilter<MutableStorage> implements M
     await storage.write(4, buffer)
 
     return filter
+  }
+
+  static async from(storage: MutableStorage): Promise<MutableBloomFilter> {
+    const parameters = await storage.read(0, 12)
+    const n = parameters.readUInt32BE(0)
+    const m = parameters.readUInt32BE(4)
+    const k = parameters.readUInt8(8)
+    return new MutableBloomFilter(storage, n, m, k)
   }
 
   async add(element: Buffer) {
