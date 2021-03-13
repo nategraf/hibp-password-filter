@@ -9,6 +9,10 @@ export class BufferStorage implements MutableStorage {
     this.size = this.buffer.length
   }
 
+  static from(buffer: Buffer): BufferStorage {
+    return new BufferStorage(buffer)
+  }
+
   static async alloc(size: number): Promise<BufferStorage> {
     return new BufferStorage(
       Buffer.alloc(size)

@@ -12,13 +12,12 @@ beforeAll(async () => {
   await fs.mkdir(TEST_DATA_DIR, { recursive: true })
 })
 
-
 const testFilters = {
   'SetFilter': () => {
     return new SetFilter()
   },
   'MutableBloomFilter<BufferStorage>{m: 1024, k: 3}': () => {
-    return MutableBloomFilter.create(1024, 3)
+    return MutableBloomFilter.create(1024, 3, BufferStorage)
   },
   'MutableBloomFilter<MutableFileStorage>{m: 1024, k: 3}': () => {
     const allocator = new FileAllocator(path.resolve(TEST_DATA_DIR, 'bloom.filter'), { mode: 'w+' })

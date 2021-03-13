@@ -83,7 +83,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 }
 
 export class MutableBloomFilter<S extends MutableStorage = MutableStorage> extends BloomFilter<S> implements MutableFilter {
-  static async create(m: number, k: number, allocator: StorageAllocator<MutableStorage> = BufferStorage): Promise<MutableBloomFilter> {
+  static async create<Z extends MutableStorage>(m: number, k: number, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
     const size = Math.ceil(m/8) + 12
     const storage = await allocator.alloc(size)
     const filter = new MutableBloomFilter(storage, 0, m, k)
@@ -97,7 +97,7 @@ export class MutableBloomFilter<S extends MutableStorage = MutableStorage> exten
     return filter
   }
 
-  static async from(storage: MutableStorage): Promise<MutableBloomFilter> {
+  static async from<Z extends MutableStorage>(storage: Z): Promise<MutableBloomFilter<Z>> {
     const parameters = await storage.read(0, 12)
     const n = parameters.readUInt32BE(0)
     const m = parameters.readUInt32BE(4)
