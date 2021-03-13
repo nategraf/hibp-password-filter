@@ -28,6 +28,6 @@ export interface MutableStorage extends Storage {
   write(index: number, value: Buffer): Promise<void>
 }
 
-export interface Allocator<S extends Storage> {
-  alloc(size: number): S
+export interface StorageAllocator<S extends MutableStorage> {
+  alloc(size: number): Promise<S>
 }

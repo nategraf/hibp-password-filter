@@ -1,21 +1,25 @@
 import { BufferStorage } from './buffer'
-import { Allocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
+import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
 /**
- *
  * @remarks Storage layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
  */
 export class BloomFilter<S extends Storage = Storage> implements Filter {
+  protected _n: number
 
   protected constructor(
-    protected readonly storage: S,
-    protected n: number,
+    readonly storage: S,
+    n: number,
     readonly m: number,
     readonly k: number,
   ) {
+    this._n = n
+    if (this.n < 0 || this.n % 1 !== 0) {
+      throw new Error("n value must be an integer in interval [0, 2^32)")
+    }
     if (this.m < 0 || this.m % 1 !== 0) {
-      throw new Error("m value must be an integer in interval [1, 2^32)")
+      throw new Error("m value must be an integer in interval [0, 2^32)")
     }
     if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
       throw new Error("k value must be an integer in interval [1, 256)")
@@ -23,11 +27,17 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
   }
 
   static async from(storage: Storage): Promise<BloomFilter> {
+    // Read the filter metadata from storage.
     const parameters = await storage.read(0, 12)
     const n = parameters.readUInt32BE(0)
     const m = parameters.readUInt32BE(4)
     const k = parameters.readUInt8(8)
+
     return new BloomFilter(storage, n, m, k)
+  }
+
+  get n() {
+    return this._n
   }
 
   async has(element: Buffer): Promise<boolean> {
@@ -68,14 +78,14 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
   }
 
   protected async readN(): Promise<void> {
-    this.n = (await this.storage.read(0, 4)).readUInt32BE()
+    this._n = (await this.storage.read(0, 4)).readUInt32BE()
   }
 }
 
-export class MutableBloomFilter extends BloomFilter<MutableStorage> implements MutableFilter {
-  static async create(m: number, k: number, allocator: Allocator<MutableStorage> = BufferStorage): Promise<MutableBloomFilter> {
+export class MutableBloomFilter<S extends MutableStorage = MutableStorage> extends BloomFilter<S> implements MutableFilter {
+  static async create(m: number, k: number, allocator: StorageAllocator<MutableStorage> = BufferStorage): Promise<MutableBloomFilter> {
     const size = Math.ceil(m/8) + 12
-    const storage = allocator.alloc(size)
+    const storage = await allocator.alloc(size)
     const filter = new MutableBloomFilter(storage, 0, m, k)
     
     // Write the parameter block to storage.
@@ -92,6 +102,7 @@ export class MutableBloomFilter extends BloomFilter<MutableStorage> implements M
     const n = parameters.readUInt32BE(0)
     const m = parameters.readUInt32BE(4)
     const k = parameters.readUInt8(8)
+
     return new MutableBloomFilter(storage, n, m, k)
   }
 
@@ -99,7 +110,7 @@ export class MutableBloomFilter extends BloomFilter<MutableStorage> implements M
     for (let i = 0; i < this.k; i++) {
       await this.setBit(this.hash(element, i))
     }
-    this.n++
+    this._n++
     await this.writeN()
   }
 

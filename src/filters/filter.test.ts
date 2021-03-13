@@ -1,11 +1,29 @@
 import { MutableFilter } from './filter'
 import { SetFilter } from './set'
 import { MutableBloomFilter } from './bloom'
+import { FileAllocator } from './file'
 import { BufferStorage } from './buffer'
+import { promises as fs } from 'fs'
+import * as path from 'path'
+
+const TEST_DATA_DIR = path.resolve(__dirname, '__test__/filter.test.ts/')
+
+beforeAll(async () => {
+  await fs.mkdir(TEST_DATA_DIR, { recursive: true })
+})
+
 
 const testFilters = {
-  'SetFilter': () => new SetFilter(),
-  'MutableBloomFilter{m: 1024, k: 3}': () => MutableBloomFilter.create(1024, 3),
+  'SetFilter': () => {
+    return new SetFilter()
+  },
+  'MutableBloomFilter<BufferStorage>{m: 1024, k: 3}': () => {
+    return MutableBloomFilter.create(1024, 3)
+  },
+  'MutableBloomFilter<MutableFileStorage>{m: 1024, k: 3}': () => {
+    const allocator = new FileAllocator(path.resolve(TEST_DATA_DIR, 'bloom.filter'), { mode: 'w+' })
+    return MutableBloomFilter.create(1024, 3, allocator)
+  }
 }
 
 // Estimator confidence in number of standard deviations.

@@ -1,16 +1,17 @@
 import { MutableStorage } from './filter'
 
 export class BufferStorage implements MutableStorage {
+  readonly size
 
   private constructor(
-    private readonly buffer: Buffer,
-    readonly size: number
-  ) {}
+    readonly buffer: Buffer,
+  ) {
+    this.size = this.buffer.length
+  }
 
-  static alloc(size: number) {
+  static async alloc(size: number): Promise<BufferStorage> {
     return new BufferStorage(
-      Buffer.alloc(size),
-      size
+      Buffer.alloc(size)
     )
   }
 
