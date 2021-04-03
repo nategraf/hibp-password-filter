@@ -41,4 +41,5 @@ dist/**/*
 yarn.lock
 
 # ignore data written by tests
-**/__test__/**/*
+**/__test__
+build
