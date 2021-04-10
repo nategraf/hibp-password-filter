@@ -14,6 +14,9 @@ export enum ParseError {
 }
 
 export class HibpOrderedByCountReader {
+  // Chunk size in bytes controls how many bytes are read from the stream at a time.
+  private readonly chunkSize = 16 * 1024
+
   // parse reads a single entry from the head of the buffer, then returns a
   // slice of the given buffer with the remaining data. If the buffer does not
   // contain a valid entry starting at position 0, an error will be returned.
@@ -48,5 +51,38 @@ export class HibpOrderedByCountReader {
     }
     
     return { entry: {hash, count}, tail }
+  }
+
+  static async *read(stream: Stream): Iterator<Promise<{entry?: HibpHashCountEntry, error?: ParseErrora}>> {
+    const buffer = Buffer.alloc(this.chunkSize)
+    let offset = 0
+    while (true) {
+      // Read into the buffer a chunk of data, writing it starting at the
+      // offset, which marked the first available byte.
+      const { bytesRead } = stream.read(buffer, offset)
+      if (bytesRead === 0) {
+        break
+      }
+      offset += bytesRead
+
+      // Iteratively parse all complete entries currently in the buffer.
+      let slice = buffer.slice(0, offset)
+      do {
+        const { entry, error, tail } = HibpOrderedByCountReader.parse(slice)
+        if (error !== ParseError.EndOfBuffer) {
+          yield { entry, error }
+        }
+        slice = tail
+      } while (error === undefined && slice.length > 0);
+      
+      // Copy any remaining (incomplete) entries to the start of the buffer and adjust the offset.
+      slice.copy(buffer)
+      offset = slice.length
+    }
+
+    // If any data is leftover in the buffer, then an invalid entry exists at the end of teh file.
+    if (offset !== 0) {
+      yield { error: ParseError.InvalidEntry }
+    }
   }
 }
