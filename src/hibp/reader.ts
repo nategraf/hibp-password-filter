@@ -3,7 +3,7 @@ export interface Stream {
   read(buffer?: Buffer, offset?: number, length?: number, position?: number): Promise<{ bytesRead: number, buffer: Buffer }>
 }
 
-interface HibpHashCountEntry {
+export interface HibpHashCountEntry {
   hash: Buffer
   count: number
 }
@@ -15,7 +15,7 @@ export enum ParseError {
 
 export class HibpOrderedByCountReader {
   // Chunk size in bytes controls how many bytes are read from the stream at a time.
-  private readonly chunkSize = 16 * 1024
+  private static readonly chunkSize = 16 * 1024
 
   // parse reads a single entry from the head of the buffer, then returns a
   // slice of the given buffer with the remaining data. If the buffer does not
@@ -53,13 +53,13 @@ export class HibpOrderedByCountReader {
     return { entry: {hash, count}, tail }
   }
 
-  static async *read(stream: Stream): Iterator<Promise<{entry?: HibpHashCountEntry, error?: ParseErrora}>> {
+  static async *read(stream: Stream): AsyncGenerator<{entry?: HibpHashCountEntry, error?: ParseError}> {
     const buffer = Buffer.alloc(this.chunkSize)
     let offset = 0
     while (true) {
       // Read into the buffer a chunk of data, writing it starting at the
       // offset, which marked the first available byte.
-      const { bytesRead } = stream.read(buffer, offset)
+      const { bytesRead } = await stream.read(buffer, offset)
       if (bytesRead === 0) {
         break
       }
@@ -69,11 +69,12 @@ export class HibpOrderedByCountReader {
       let slice = buffer.slice(0, offset)
       do {
         const { entry, error, tail } = HibpOrderedByCountReader.parse(slice)
-        if (error !== ParseError.EndOfBuffer) {
-          yield { entry, error }
-        }
         slice = tail
-      } while (error === undefined && slice.length > 0);
+        if (error === ParseError.EndOfBuffer) {
+          break
+        }
+        yield { entry, error }
+      } while (slice.length > 0);
       
       // Copy any remaining (incomplete) entries to the start of the buffer and adjust the offset.
       slice.copy(buffer)

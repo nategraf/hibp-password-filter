@@ -1,4 +1,4 @@
-import { HibpOrderedByCountReader, ParseError, Stream } from './reader'
+import { HibpHashCountEntry, HibpOrderedByCountReader, ParseError, Stream } from './reader'
 
 class BufferStream {
   private position = 0
@@ -10,12 +10,15 @@ class BufferStream {
   async read(buffer?: Buffer, offset?: number, length?: number, position?: number): Promise<{ bytesRead: number, buffer: Buffer }> {
     const out = buffer ?? Buffer.alloc(this.buffer.length - this.position) 
     const start = position ?? this.position
-    const end = start + out.length - (offset ?? 0)
+    const end = Math.min(
+      start + out.length - (offset ?? 0),
+      this.buffer.length
+    )
     this.buffer.copy(out, offset, start, end)
 
     // Do not adjust internal position if position arg is provided.
     // Matches behavior of fs API https://nodejs.org/api/fs.html#fs_filehandle_read_options
-    if (position !== undefined) {
+    if (position === undefined) {
       this.position = end
     }
     return { bytesRead: end - start, buffer: out }
@@ -88,7 +91,7 @@ B80A9AED8AF17118E51D4D0C2D7872AE26E2109E:1205102
 B0399D2029F64D445BD131FFAA399A42D2F8E7DC:1117379
 40BD001563085FC35165329EA1FF5C5ECBDBBEEF:1078184
 AB87D24BDC7452E55738DEB5F868E1F16DEA5ACE:1000081
-AF8978B1797B72ACFFF9595A5A2A373EC3D9106D:994142
+AF8978B1797B72ACFFF959
 `
 
 describe('HibpOrderedByCountReader', () => {
@@ -216,12 +219,25 @@ describe('HibpOrderedByCountReader', () => {
   describe('#read', () => {
     it('should iterate over all entries in a valid list', async () => {
       const stream = new BufferStream(Buffer.from(validTestList))
-      const entries = []
+      const entries: (HibpHashCountEntry|undefined)[] = []
       for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
         expect(error).toBeUndefined()
-        entries.append(entry)
+        entries.push(entry)
       }
       expect(entries).toEqual(validTestListEntries)
+    })
+
+    it('should iterate over all entries in a valid list', async () => {
+      const stream = new BufferStream(Buffer.from(malformedTestList))
+      const errors: (ParseError|undefined)[] = []
+      for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
+        expect(entry === undefined).toBe(error !== undefined)
+        errors.push(error)
+      }
+      const expected = [...Array(20).keys()].map(
+        (i) => (i === 8 || i === 19) ? ParseError.InvalidEntry : undefined
+      )
+      expect(errors).toEqual(expected)
     })
   })
 })
