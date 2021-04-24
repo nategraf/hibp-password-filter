@@ -3,6 +3,8 @@ import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from
 import * as crypto from 'crypto'
 
 /**
+ * BloomFilter implements a bloom filter probabilistic set that can answer "maybe in the set" or "definitly not in the set".
+ *
  * @remarks Storage layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
  */
 export class BloomFilter<S extends Storage = Storage> implements Filter {
@@ -61,16 +63,26 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     return (await this.storage.byte(i)) & (1 << j)
   }
 
-  protected hash(element: Buffer, index: number): number {
-    // Produce a SHA1 hash of { index || element }
+  /**
+   * Hash function to [0, m) taking the element, hash function index, and a
+   * counter. Hash uses a recursive implementation of try and increment
+   * unbiased random sampling. The counter is used by recursive calls to obtain
+   * a new hash result on each call.
+   */
+  protected hash(element: Buffer, index: number, counter: number = 0): number {
+    // Produce a SHA1 hash of { index || element || counter }
     const hash = crypto.createHash('sha1')
     hash.update(Buffer.from([index]))
     hash.update(element)
     const digest = hash.digest()
 
-    // Cast the digest, interpreted as a big-endian integer, to [0, m).
-    // FIXME: Current implementation can introduce error for large m.
-    return digest.readUInt32BE() % this.m
+    // Based on Algorithm 4 of https://arxiv.org/pdf/1805.10941.pdf
+    const x = digest.readUInt32BE()
+    const r = x % this.m
+    if (x - r > (0x100000000 - this.m)) {
+      return this.hash(element, index, counter+1)
+    }
+    return r
   }
 
   protected storageIndex(bitIndex: number): [number, number] {
