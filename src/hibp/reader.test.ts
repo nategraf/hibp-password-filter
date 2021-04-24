@@ -227,7 +227,7 @@ describe('HibpOrderedByCountReader', () => {
       expect(entries).toEqual(validTestListEntries)
     })
 
-    it('should iterate over all entries in a valid list', async () => {
+    it('should report errors for entries in the invalid list', async () => {
       const stream = new BufferStream(Buffer.from(malformedTestList))
       const errors: (ParseError|undefined)[] = []
       for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
