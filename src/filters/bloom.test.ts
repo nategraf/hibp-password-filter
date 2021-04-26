@@ -16,7 +16,7 @@ describe('BloomFilter', () => {
 
   beforeAll(async () => {
     // Create a new filter and populate it with some basic elements.
-    filter = await MutableBloomFilter.create(20 * 1024, 4, BufferStorage)
+    filter = await MutableBloomFilter.create({ m: 20 * 1024, k: 4 }, BufferStorage)
     for (let i = 0; i < load; i++) {
       await filter.add(Buffer.from(`Item ${i}`))
     }

@@ -17,11 +17,11 @@ const testFilters = {
     return new SetFilter()
   },
   'MutableBloomFilter<BufferStorage>{m: 1024, k: 3}': () => {
-    return MutableBloomFilter.create(1024, 3, BufferStorage)
+    return MutableBloomFilter.create({ m: 1024, k: 3 }, BufferStorage)
   },
   'MutableBloomFilter<MutableFileStorage>{m: 1024, k: 3}': () => {
     const allocator = new FileAllocator(path.resolve(TEST_DATA_DIR, 'bloom.filter'), { mode: 'w+' })
-    return MutableBloomFilter.create(1024, 3, allocator)
+    return MutableBloomFilter.create({ m: 1024, k: 3 }, allocator)
   }
 }
 

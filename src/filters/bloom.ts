@@ -44,7 +44,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    * Calculates an approximate false positive rate with the given number of
    * bits, hash functions, and elements.
    */
-  static epsilonWith(options: {m: number, k: number: n: number}) {
+  static epsilonWith(options: {m: number, k: number, n: number}): number {
     return Math.pow(1 - Math.exp(-options.k*options.n/options.m), options.k)
   }
 
@@ -52,32 +52,121 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    * Populates the given partial struct of options to contain enough
    * information to create a bloom filter that is optimal within the given
    * constraints.
+   *
+   * @privateRemarks Equations for optimal parameter settings come from
+   * https://en.wikipedia.org/wiki/Bloom_filter#Optimal_number_of_hash_functions
+   *
+   * FIXME: Write tests for this function!
    */
   static populateOptions(options: Partial<BloomFilterOptions>): BloomFilterOptions {
     const { m, k, n, epsilon } = options
     const defined = (x: number|undefined): x is number => x !== undefined
-    
-    // If both m and k are assigned, then the filter is fully specified.
-    if (defined(m) && defined(k)) {
-      if (defined(n) && !defined(epsilon)) {
-        return { ...options, epsilon: this.epsilonWith({m, k, n}) }
-      }
-      return { ...options }
-    }
 
-    // If m and n are specified, choose an optimal k to minimize the error rate.
-    if (defined(m) && defined(n)) {
+    // Function for optimal to minimize epsilon k given m and n.
+    const kOptimal = (m: number, n: number): number => {
       const kLower = Math.floor((m / n) * Math.log(2))
       const kUpper = Math.ceil((m / n) * Math.log(2))
-      const kOptimal =
+      return (
         this.epsilonWith({m, n, k: kLower}) < this.epsilonWith({m, n, k: kUpper}) ? kLower : kUpper
+      )
+    }
+
+    // Function to find the maximun number of elements to maintain a given error rate.
+    const nMax = (m: number, k: number, epsilon: number): number => {
+      let [low, high] = [0, 0xFFFFFFFF]
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2)
+        if (this.epsilonWith({m, k, n: mid}) <= epsilon) {
+          low = mid
+        } else {
+          high = mid - 1
+        }
+      }
+      return low
+    }
+
+    // Function to find the minimum number of bits to maintain a given error rate.
+    const mMin = (k: number, n: number, epsilon: number): number => {
+      let [low, high] = [1, 0x100000000]
+      while (low < high) {
+        const mid = Math.ceil((low + high) / 2)
+        if (this.epsilonWith({m: mid, k, n}) <= epsilon) {
+          high = mid
+        } else {
+          low = mid + 1
+        }
+      }
+      if (low >= 0x100000000) {
+        throw new Error("minimum m value exceeds supported maximum size")
+      }
+      return low
+    }
+    
+    // If all parameters are specified, return a copy of the options.
+    if (defined(m) && defined(k) && defined(n) && defined(epsilon)) {
+      // Check to see if the provided paramters are consistent.
+      if (this.epsilonWith({ m, n, k }) > epsilon) {
+        throw new Error("provided parameters are inconsistent")
+      }
+      return { m, k, n, epsilon }
+    }
+
+    // If any one paramter is missing, choose an optimal value.
+    if (defined(m) && defined(k) && defined(n)) {
+      return { m, k, n, epsilon: this.epsilonWith({m, k, n}) }
+    }
+    
+    if (defined(m) && defined(k) && defined(epsilon)) {
+      return { m, k, epsilon, n: nMax(m, k, epsilon) }
+    }
+
+    if (defined(m) && defined(n) && defined(epsilon)) {
+      // Check to see if the provided paramters are consistent.
+      if (this.epsilonWith({ m, n, k: kOptimal(m, n) }) > epsilon) {
+        throw new Error("provided parameters are inconsistent")
+      }
+      return { m, n, epsilon, k: kOptimal(m, n) }
+    }
+
+    if (defined(k) && defined(n) && defined(epsilon)) {
+      return { k, n, epsilon, m: Math.ceil(mMin(k, n, epsilon) / 8) * 8 }
+    }
+
+    // An optimal k exists for any 2 of 3 (m, n, epsilon). Use it to populate
+    // the missing paramters.
+    if (defined(m) && defined(n)) {
       return {
         m, n,
-        k: kOptimal,
-        epsilon: this.epsilonWith({m, n, k: kOptimal})
+        k: kOptimal(m, n),
+        epsilon: this.epsilonWith({m, n, k: kOptimal(m, n)})
       }
     }
-    // TODO: Handle the remaining cases
+
+    if (defined(m) && defined(epsilon)) {
+      const nLimit = Math.floor(-(m / Math.log(epsilon)) * Math.pow(Math.log(2), 2))
+      return {
+        m, epsilon,
+        n: nLimit,
+        k: kOptimal(m, nLimit)
+      }
+    }
+
+    if (defined(n) && defined(epsilon)) {
+      const mOptimal = -(n*Math.log(epsilon)) / Math.pow(Math.log(2), 2)
+      const mCeil = Math.ceil(mOptimal / 8) * 8
+      return {
+        n, epsilon,
+        m: mCeil,
+        k: kOptimal(mCeil, n)
+      }
+    }
+
+    // In all other cases, no additional information can be inferred.
+    if (defined(m) && defined(k)) {
+      return { m, k }
+    }
+
+    throw new Error("complete bloom filter options cannot be inferred from the provided parameters")
   }
 
   static async from(storage: Storage): Promise<BloomFilter> {
@@ -107,7 +196,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    * Approximated error rate based on the bloom filter parameters and number of elements.
    */
   epsilon() {
-    return this.epsilonWith({m: this.m, k: this.k, n: this.n})
+    return BloomFilter.epsilonWith({m: this.m, k: this.k, n: this.n})
   }
 
   async bit(index: number): Promise<number> {
@@ -147,15 +236,16 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 }
 
 export class MutableBloomFilter<S extends MutableStorage = MutableStorage> extends BloomFilter<S> implements MutableFilter {
-  static async create<Z extends MutableStorage>(options: {m: number, k: number, n: number, epsilon: number}, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
-    const size = Math.ceil(options.m/8) + 12
+  static async create<Z extends MutableStorage>(options: Partial<BloomFilterOptions>, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
+    const populated = this.populateOptions(options)
+    const size = Math.ceil(populated.m/8) + 12
     const storage = await allocator.alloc(size)
-    const filter = new MutableBloomFilter(storage, 0, options.m, options.k)
+    const filter = new MutableBloomFilter(storage, 0, populated.m, populated.k)
     
     // Write the parameter block to storage.
     const buffer = Buffer.alloc(5)
-    buffer.writeUInt32BE(options.m)
-    buffer.writeUInt8(options.k, 4)
+    buffer.writeUInt32BE(populated.m)
+    buffer.writeUInt8(populated.k, 4)
     await storage.write(4, buffer)
 
     return filter
