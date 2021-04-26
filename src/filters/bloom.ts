@@ -3,6 +3,18 @@ import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from
 import * as crypto from 'crypto'
 
 /**
+ * Options available when creating a bloom filter.
+ *
+ * @remarks TODO: Explain how to use this interface.
+ */
+export interface BloomFilterOptions {
+  m: number
+  k: number
+  n?: number
+  epsilon?: number
+}
+
+/**
  * BloomFilter implements a bloom filter probabilistic set that can answer "maybe in the set" or "definitly not in the set".
  *
  * @remarks Storage layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
@@ -26,6 +38,46 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     if (this.k < 1 || this.k > 255 || this.k % 1 !== 0) {
       throw new Error("k value must be an integer in interval [1, 256)")
     }
+  }
+
+  /**
+   * Calculates an approximate false positive rate with the given number of
+   * bits, hash functions, and elements.
+   */
+  static epsilonWith(options: {m: number, k: number: n: number}) {
+    return Math.pow(1 - Math.exp(-options.k*options.n/options.m), options.k)
+  }
+
+  /**
+   * Populates the given partial struct of options to contain enough
+   * information to create a bloom filter that is optimal within the given
+   * constraints.
+   */
+  static populateOptions(options: Partial<BloomFilterOptions>): BloomFilterOptions {
+    const { m, k, n, epsilon } = options
+    const defined = (x: number|undefined): x is number => x !== undefined
+    
+    // If both m and k are assigned, then the filter is fully specified.
+    if (defined(m) && defined(k)) {
+      if (defined(n) && !defined(epsilon)) {
+        return { ...options, epsilon: this.epsilonWith({m, k, n}) }
+      }
+      return { ...options }
+    }
+
+    // If m and n are specified, choose an optimal k to minimize the error rate.
+    if (defined(m) && defined(n)) {
+      const kLower = Math.floor((m / n) * Math.log(2))
+      const kUpper = Math.ceil((m / n) * Math.log(2))
+      const kOptimal =
+        this.epsilonWith({m, n, k: kLower}) < this.epsilonWith({m, n, k: kUpper}) ? kLower : kUpper
+      return {
+        m, n,
+        k: kOptimal,
+        epsilon: this.epsilonWith({m, n, k: kOptimal})
+      }
+    }
+    // TODO: Handle the remaining cases
   }
 
   static async from(storage: Storage): Promise<BloomFilter> {
@@ -55,7 +107,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    * Approximated error rate based on the bloom filter parameters and number of elements.
    */
   epsilon() {
-    return Math.pow(1 - Math.exp(-this.k*this.n/this.m), this.k)
+    return this.epsilonWith({m: this.m, k: this.k, n: this.n})
   }
 
   async bit(index: number): Promise<number> {
@@ -95,15 +147,15 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 }
 
 export class MutableBloomFilter<S extends MutableStorage = MutableStorage> extends BloomFilter<S> implements MutableFilter {
-  static async create<Z extends MutableStorage>(m: number, k: number, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
-    const size = Math.ceil(m/8) + 12
+  static async create<Z extends MutableStorage>(options: {m: number, k: number, n: number, epsilon: number}, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
+    const size = Math.ceil(options.m/8) + 12
     const storage = await allocator.alloc(size)
-    const filter = new MutableBloomFilter(storage, 0, m, k)
+    const filter = new MutableBloomFilter(storage, 0, options.m, options.k)
     
     // Write the parameter block to storage.
     const buffer = Buffer.alloc(5)
-    buffer.writeUInt32BE(m)
-    buffer.writeUInt8(k, 4)
+    buffer.writeUInt32BE(options.m)
+    buffer.writeUInt8(options.k, 4)
     await storage.write(4, buffer)
 
     return filter
