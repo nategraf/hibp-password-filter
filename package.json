@@ -7,6 +7,7 @@
   "devDependencies": {
     "@types/jest": "^26.0.22",
     "@types/node": "^14.14.27",
+    "chalk": "^4.1.1",
     "clime": "^0.5.14",
     "jest": "^26.6.3",
     "ts-jest": "^26.5.4",
