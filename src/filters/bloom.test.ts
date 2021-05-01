@@ -1,4 +1,4 @@
-import { MutableBloomFilter, BloomFilter } from './bloom'
+import { MutableBloomFilter, BloomFilter, BloomFilterOptions } from './bloom'
 import { BufferStorage } from './buffer'
 import { FileStorage } from './file'
 import { promises as fs } from 'fs'
@@ -67,5 +67,147 @@ describe('BloomFilter', () => {
       const item = Buffer.from(`Excluded item ${i}`)
       expect(await filter.has(item)).toBe(await copy.has(item))
     }
+  })
+
+  describe('#populateOptions', () => {
+    const bitmaps: boolean[][] = [...Array(16).keys()].map((i) => [i & 1, i & 2, i & 4, i & 8].map((i) => !!i))
+    const testOptions: BloomFilterOptions = { m: 1024, k: 3, n: 100, epsilon: 0.05 }
+
+    for (const bitmap of bitmaps) {
+      describe(`when { ${['m', 'k', 'n', 'epsilon'].filter((_, i) => bitmap[i]).join(', ')} } is provided`, () => {
+        const [mSet, kSet, nSet, epsilonSet] = bitmap
+        const options: Partial<BloomFilterOptions> = {
+          m: mSet ? testOptions.m : undefined,
+          k: kSet ? testOptions.k : undefined,
+          n: nSet ? testOptions.n : undefined,
+          epsilon: epsilonSet ? testOptions.epsilon : undefined
+        }
+
+        // Test for cases where not enough parameters have been provided.
+        if (!((mSet && (kSet || nSet || epsilonSet)) || (nSet && epsilonSet))) {
+          it('throws an error indicating incomplete specification', () => {
+            expect(() => {
+              BloomFilter.populateOptions(options)
+            }).toThrow(/incomplete specification/)
+          })
+          return
+        }
+
+        const result = BloomFilter.populateOptions(options)
+
+        // If either n or epsilon are provided, the other should be inferred in.
+        if (nSet || epsilonSet) {
+          it('should provide values for n and epsilon', () => {
+            expect(result.n).toBeDefined()
+            expect(result.epsilon).toBeDefined()
+          })
+        }
+
+        if (mSet) {
+          it('should not change m', () => {
+            expect(result.m).toBe(options.m)
+          })
+        } else {
+          it('should choose a minimal m, rounded up to the nearest byte', () => {
+            // If m is not set, epsilon must be set. Use it check the value of m.
+            expect(
+              BloomFilter.epsilonWith({
+                m: Math.floor(result.m/8 - 1) * 8,
+                k: result.k,
+                n: result.n!
+              })
+            ).toBeGreaterThan(options.epsilon!)
+          })
+        }
+
+        if (kSet) {
+          it('should not change k', () => {
+            expect(result.k).toBe(options.k)
+          })
+        } else {
+          it('should choose the optimal value for k', () => {
+            // Increasing k should increase epsilon
+            expect(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k,
+                n: result.n ?? 100
+              })
+            ).toBeLessThan(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k + 1,
+                n: result.n ?? 100
+              })
+            )
+
+            // Decreasing k should increase epsilon
+            expect(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k,
+                n: result.n ?? 100
+              })
+            ).toBeLessThan(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k - 1,
+                n: result.n ?? 100
+              })
+            )
+          })
+        }
+
+        if (nSet) {
+          it('should not change n', () => {
+            expect(result.n).toBe(options.n)
+          })
+        } else if (epsilonSet) {
+          it('should choose a maximal n', () => {
+            expect(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k,
+                n: result.n! + 1
+              })
+            ).toBeGreaterThan(options.epsilon!)
+          })
+        }
+
+        if (epsilonSet) {
+          it('should not change epsilon', () => {
+            expect(result.epsilon).toBe(options.epsilon)
+          })
+        } else if (nSet) {
+          it('should be calculated from the other options', () => {
+            expect(
+              result.epsilon!
+            ).toEqual(
+              BloomFilter.epsilonWith({
+                m: result.m,
+                k: result.k,
+                n: result.n!
+              })
+            )
+          })
+        }
+      })
+    }
+
+    describe('when inconsistent { m, n, epsilon } are provided', () => {
+      it('should throw an inconsistent options error', () => {
+        expect(() => {
+          BloomFilter.populateOptions({ m: 1024, n: 200, epsilon: 0.05 })
+        }).toThrow(/parameters are inconsistent/)
+      })
+    })
+
+    describe('when inconsistent { m, k, n, epsilon } are provided', () => {
+      it('should throw an inconsistent options error', () => {
+        expect(() => {
+          BloomFilter.populateOptions({ m: 1024, k: 30, n: 100, epsilon: 0.05 })
+        }).toThrow(/parameters are inconsistent/)
+      })
+    })
   })
 })

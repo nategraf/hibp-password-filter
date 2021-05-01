@@ -89,7 +89,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     const mMin = (k: number, n: number, epsilon: number): number => {
       let [low, high] = [1, 0x100000000]
       while (low < high) {
-        const mid = Math.ceil((low + high) / 2)
+        const mid = Math.floor((low + high) / 2)
         if (this.epsilonWith({m: mid, k, n}) <= epsilon) {
           high = mid
         } else {
@@ -166,7 +166,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
       return { m, k }
     }
 
-    throw new Error("complete bloom filter options cannot be inferred from the provided parameters")
+    throw new Error("incomplete specification: complete bloom filter options cannot be inferred from the provided parameters")
   }
 
   static async from(storage: Storage): Promise<BloomFilter> {
