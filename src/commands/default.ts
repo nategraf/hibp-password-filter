@@ -1,16 +1,1 @@
-import {Command, command, param} from 'clime'
-
-@command({
-  description: 'This is a command for printing a greeting message',
-})
-export default class extends Command {
-  execute(
-    @param({
-      description: 'Your loud name',
-      required: true,
-    })
-    name: string,
-  ) {
-    return `Hello, ${name}!`
-  }
-}
+export const description = 'Command line tool for compiling and querying password filters built from the HIBP Passwords dataset. ';
