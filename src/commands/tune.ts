@@ -31,28 +31,73 @@ export class TuneOptions extends Options {
   epsilon?: number
 }
 
-const formatBits = (bits: number) => {
-  if (bits < 256) {
-    return `${bits} bits`
+/**
+* Format bits as human-readable text.
+* 
+* @param bits Number of bits.
+* @param si True to use metric (SI) units, aka powers of 1000. False to use 
+*           binary (IEC), aka powers of 1024.
+* @param dp Number of decimal places to display.
+* 
+* @return Formatted string.
+*
+* @remarks Originally by @mpen on StackOverflow https://stackoverflow.com/a/14919494
+*/
+function formatBits(bits: number, si=false, dp=2): string {
+  const threshold = si ? 1000 : 1024
+
+  if (Math.abs(bits) < 8) {
+    return bits + ' b'
   }
 
-  const bytes = bits / 8
-  if (bytes < 4096) {
-    return `${bytes} B`
+  let size = bits / 8
+  if (Math.abs(size) < threshold) {
+    return size + ' B'
   }
 
-  const kilobytes = bytes / 1024
-  if (kilobytes < 4096) {
-    return `${kilobytes} KiB`
+  const units = si 
+    ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'] 
+    : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+  let u = -1
+  const r = 10**dp
+
+  do {
+    size /= threshold
+    ++u
+  } while (Math.round(Math.abs(size) * r) / r >= threshold && u < units.length - 1)
+
+
+  return size.toFixed(dp) + ' ' + units[u]
+}
+
+/**
+* Format count as human-readable text.
+* 
+* @param count Number of objects.
+* @param dp Number of decimal places to display.
+* 
+* @return Formatted string.
+*
+* @remarks Originally by @mpen on StackOverflow https://stackoverflow.com/a/14919494
+*/
+function formatCount(count: number, dp=2): string {
+  const threshold = 1000
+
+  if (Math.abs(count) < threshold) {
+    return count.toString()
   }
 
-  const megabytes = kilobytes / 1024
-  if (megabytes < 4096) {
-    return `${megabytes} MiB`
-  }
+  const units = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+  let u = -1
+  const r = 10**dp
 
-  const gigabytes = megabytes / 1024
-  return `${gigabytes} GiB`
+  do {
+    count /= threshold
+    ++u
+  } while (Math.round(Math.abs(count) * r) / r >= threshold && u < units.length - 1)
+
+
+  return count.toFixed(dp) + units[u]
 }
 
 @command({
@@ -72,7 +117,7 @@ export default class extends Command {
 
     return `
     Storage size: ${formatBits(m)}
-    Capacity:     ${n}
+    Capacity:     ${n && formatCount(n)}
     Hashes:       ${k}
     Error rate:   ${epsilon}
     `.trim().replace(/^\s+/gm, '')
