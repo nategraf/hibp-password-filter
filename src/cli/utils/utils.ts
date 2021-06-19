@@ -1,3 +1,5 @@
+import {CastingContext} from 'clime';
+
 /**
 * Format bits as human-readable text.
 * 
@@ -63,6 +65,7 @@ export const formatCount = (count: number, dp=2): string => {
   return count.toFixed(dp) + ' ' + units[u]
 }
 
+
 /**
 * Parse bits from human-readable text.
 * 
@@ -71,14 +74,14 @@ export const formatCount = (count: number, dp=2): string => {
 * @return Integer bits.
 */
 export const parseBits = (str: string): number => {
-  const match = str.match(/^(?<bits>\d+(\.?\d*))\s*(?<unit>([KMGTPEZY]iB|[bB]?))$/)
-  if (match === null || match.groups?.bits === undefined || match.groups?.unit === undefined ) {
-    throw new Error(`could not parse a bits value from '${str}'`)
+  const match = str.match(/^(?<quantifier>\d+(\.?\d*))\s*(?<unit>([KMGTPEZY]iB|[bB]?))$/)
+  if (match === null || match.groups?.quantifier === undefined || match.groups?.unit === undefined ) {
+    throw new Error(`could not parse a quantifier value from '${str}'`)
   }
 
-  const bits = parseFloat(match.groups.bits)
-  if (isNaN(bits)) {
-    throw new Error(`could not parse a number from '${match.groups.bits}'`)
+  const quantifier = parseFloat(match.groups.quantifier)
+  if (isNaN(quantifier)) {
+    throw new Error(`could not parse a number from '${match.groups.quantifier}'`)
   }
 
   const multiplier = (unit: string) => {
@@ -95,9 +98,9 @@ export const parseBits = (str: string): number => {
     return 8 * 1024**unitIndex
   }
 
-  const result = bits * multiplier(match.groups.unit)
+  const result = quantifier * multiplier(match.groups.unit)
   if (result % 1 !== 0) {
-    throw new Error(`bits value is not an integer: ${result}`)
+    throw new Error(`quantifier value is not an integer: ${result}`)
   }
   return result
 }
@@ -131,4 +134,26 @@ export const parseCount = (str: string): number => {
     throw new Error(`count value is not an integer: ${result}`)
   }
   return result
+}
+
+/**
+ * Command line argument type for accepting a size in bits from the command line.
+ */
+export class Bits {
+  constructor(public readonly bits: number) {}
+
+  static cast(str: string, _?: CastingContext<Bits>): Bits {
+    return new Bits(parseBits(str))
+  }
+}
+
+/**
+ * Command line argument type for accepting an integer count from the command line.
+ */
+export class Count {
+  constructor(public readonly count: number) {}
+
+  static cast(str: string, _?: CastingContext<Count>): Count {
+    return new Count(parseCount(str))
+  }
 }
