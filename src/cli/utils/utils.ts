@@ -139,21 +139,21 @@ export const parseCount = (str: string): number => {
 /**
  * Command line argument type for accepting a size in bits from the command line.
  */
-export class Bits {
+export class BitsArg {
   constructor(public readonly bits: number) {}
 
-  static cast(str: string, _?: CastingContext<Bits>): Bits {
-    return new Bits(parseBits(str))
+  static cast(str: string, _?: CastingContext<BitsArg>): BitsArg {
+    return new BitsArg(parseBits(str))
   }
 }
 
 /**
  * Command line argument type for accepting an integer count from the command line.
  */
-export class Count {
+export class CountArg {
   constructor(public readonly count: number) {}
 
-  static cast(str: string, _?: CastingContext<Count>): Count {
-    return new Count(parseCount(str))
+  static cast(str: string, _?: CastingContext<CountArg>): CountArg {
+    return new CountArg(parseCount(str))
   }
 }

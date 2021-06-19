@@ -1,21 +1,19 @@
 import { BloomFilter } from '../../filters/bloom'
-import { formatBits, formatCount } from '../utils/utils'
+import { formatBits, formatCount, CountArg, BitsArg } from '../utils/utils'
 import { Command, Options, Validation, command, metadata, option, param, params } from 'clime'
 
 export class TuneOptions extends Options {
   @option({
     flag: 'n',
-    validator: Validation.integer,
     description: 'number of passwords to be stored in the filter',
   })
-  capacity?: number
+  capacity?: CountArg
 
   @option({
     flag: 'm',
-    validator: Validation.integer,
     description: 'number of bits to use for the filter',
   })
-  size?: number
+  size?: BitsArg
 
   @option({
     flag: 'k',
@@ -42,9 +40,9 @@ export default class extends Command {
     options: TuneOptions
   ) {
     const { m, k, n, epsilon } = BloomFilter.populateOptions({
-      m: options.size,
+      m: options.size?.bits,
+      n: options.capacity?.count,
       k: options.hashes,
-      n: options.capacity,
       epsilon: options.epsilon
     })
 
