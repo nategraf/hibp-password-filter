@@ -1,29 +1,13 @@
-import { HibpHashCountEntry, HibpOrderedByCountReader, ParseError, Stream } from './reader'
+import { HibpHashCountEntry, HibpOrderedByCountReader, ParseError, BufferStream, Stream } from './reader'
+import { promises as fs } from 'fs'
+import * as path from 'path'
 
-class BufferStream {
-  private position = 0
+const TEST_DATA_DIR = path.resolve(__dirname, '__test__/reader.test.ts/')
 
-  constructor(
-    readonly buffer: Buffer
-  ) {}
+beforeAll(async () => {
+  await fs.mkdir(TEST_DATA_DIR, { recursive: true })
+})
 
-  async read(buffer?: Buffer, offset?: number, length?: number, position?: number): Promise<{ bytesRead: number, buffer: Buffer }> {
-    const out = buffer ?? Buffer.alloc(this.buffer.length - this.position) 
-    const start = position ?? this.position
-    const end = Math.min(
-      start + out.length - (offset ?? 0),
-      this.buffer.length
-    )
-    this.buffer.copy(out, offset, start, end)
-
-    // Do not adjust internal position if position arg is provided.
-    // Matches behavior of fs API https://nodejs.org/api/fs.html#fs_filehandle_read_options
-    if (position === undefined) {
-      this.position = end
-    }
-    return { bytesRead: end - start, buffer: out }
-  }
-}
 
 const validTestList = `
 7C4A8D09CA3762AF61E59520943DC26494F8941B:24230577
@@ -217,27 +201,46 @@ describe('HibpOrderedByCountReader', () => {
   })
 
   describe('#read', () => {
-    it('should iterate over all entries in a valid list', async () => {
-      const stream = new BufferStream(Buffer.from(validTestList))
-      const entries: (HibpHashCountEntry|undefined)[] = []
-      for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
-        expect(error).toBeUndefined()
-        entries.push(entry)
+    const scenarios = [
+      {
+        desc: 'reading from a buffer',
+        builder: async (data: string) => new BufferStream(Buffer.from(data))
+      },
+      {
+        desc: 'reading from a file',
+        builder: async (data: string) => {
+          const file = path.resolve(TEST_DATA_DIR, 'data.txt')
+          await fs.writeFile(file, data)
+          return fs.open(file, 'r')
+        }
       }
-      expect(entries).toEqual(validTestListEntries)
-    })
+    ]
 
-    it('should report errors for entries in the invalid list', async () => {
-      const stream = new BufferStream(Buffer.from(malformedTestList))
-      const errors: (ParseError|undefined)[] = []
-      for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
-        expect(entry === undefined).toBe(error !== undefined)
-        errors.push(error)
-      }
-      const expected = [...Array(20).keys()].map(
-        (i) => (i === 8 || i === 19) ? ParseError.InvalidEntry : undefined
-      )
-      expect(errors).toEqual(expected)
-    })
+    for (const { desc, builder } of scenarios) {
+      describe(desc, () => {
+        it('should iterate over all entries in a valid list', async () => {
+          const stream = await builder(validTestList)
+          const entries: (HibpHashCountEntry|undefined)[] = []
+          for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
+            expect(error).toBeUndefined()
+            entries.push(entry)
+          }
+          expect(entries).toEqual(validTestListEntries)
+        })
+
+        it('should report errors for entries in the invalid list', async () => {
+          const stream = await builder(malformedTestList)
+          const errors: (ParseError|undefined)[] = []
+          for await (const { entry, error } of HibpOrderedByCountReader.read(stream)) {
+            expect(entry === undefined).toBe(error !== undefined)
+            errors.push(error)
+          }
+          const expected = [...Array(20).keys()].map(
+            (i) => (i === 8 || i === 19) ? ParseError.InvalidEntry : undefined
+          )
+          expect(errors).toEqual(expected)
+        })
+      })
+    }
   })
 })

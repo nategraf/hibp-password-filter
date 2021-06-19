@@ -1,7 +1,7 @@
+import { promises as fs } from 'fs'
+
 // Stream is an abstraction of the file interface supporting reads.
-export interface Stream {
-  read(buffer?: Buffer, offset?: number, length?: number, position?: number): Promise<{ bytesRead: number, buffer: Buffer }>
-}
+export type Stream = Pick<fs.FileHandle, "read">
 
 export interface HibpHashCountEntry {
   hash: Buffer
@@ -13,13 +13,18 @@ export enum ParseError {
   EndOfBuffer = 'end of buffer'
 }
 
+/**
+ * Reader to process the HIBP password files in ordered-by-count text format.
+ */
 export class HibpOrderedByCountReader {
   // Chunk size in bytes controls how many bytes are read from the stream at a time.
   private static readonly chunkSize = 16 * 1024
 
-  // parse reads a single entry from the head of the buffer, then returns a
-  // slice of the given buffer with the remaining data. If the buffer does not
-  // contain a valid entry starting at position 0, an error will be returned.
+  /**
+  * Parse reads a single entry from the head of the buffer, then returns a
+  * slice of the given buffer with the remaining data. If the buffer does not
+  * contain a valid entry starting at position 0, an error will be returned.
+  */
   static parse(buffer: Buffer): { entry?: HibpHashCountEntry, error?: ParseError, tail: Buffer } {
     const eol = buffer.indexOf('\n')
     if (eol < 0) {
@@ -53,13 +58,20 @@ export class HibpOrderedByCountReader {
     return { entry: {hash, count}, tail }
   }
 
+  /**
+  * Read yields a list of HIBP password entries from the given stream.
+  *
+  * @remarks If an invalid entry is ecountered, and error will be yielded. If the caller wishes to
+  * continue processing the file, they may discard the error and attempt to read the next entry.
+  */
   static async *read(stream: Stream): AsyncGenerator<{entry?: HibpHashCountEntry, error?: ParseError}> {
     const buffer = Buffer.alloc(this.chunkSize)
     let offset = 0
     while (true) {
       // Read into the buffer a chunk of data, writing it starting at the
       // offset, which marked the first available byte.
-      const { bytesRead } = await stream.read(buffer, offset)
+      // Note: Providing length because Node does not consistent read otherwise.
+      const { bytesRead } = await stream.read(buffer, offset, buffer.length - offset)
       if (bytesRead === 0) {
         break
       }
@@ -81,9 +93,38 @@ export class HibpOrderedByCountReader {
       offset = slice.length
     }
 
-    // If any data is leftover in the buffer, then an invalid entry exists at the end of teh file.
+    // If any data is leftover in the buffer, then an invalid entry exists at the end of the file.
     if (offset !== 0) {
       yield { error: ParseError.InvalidEntry }
     }
   }
 }
+
+/**
+ * BufferStream implements the Stream interface wrapping a Buffer.
+ */
+export class BufferStream {
+  private position = 0
+
+  constructor(
+    readonly buffer: Buffer
+  ) {}
+
+  async read<TBuffer extends Uint8Array>(buffer?: TBuffer, offset?: number | null,  length?: number | null, position?: number | null): Promise<{ bytesRead: number, buffer: TBuffer }> {
+    const out = buffer ?? Buffer.alloc(Math.min(this.buffer.length - this.position, length ?? Infinity))
+    const start = position ?? this.position
+    const end = Math.min(
+      start + out.length - (offset ?? 0),
+      this.buffer.length
+    )
+    this.buffer.copy(out, offset ?? 0, start, end)
+
+    // Do not adjust internal position if position arg is provided.
+    // Matches behavior of fs API https://nodejs.org/api/fs.html#fs_filehandle_read_options
+    if (position === undefined || position === null) {
+      this.position = end
+    }
+    return { bytesRead: end - start, buffer: out as TBuffer}
+  }
+}
+
