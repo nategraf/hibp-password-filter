@@ -18,7 +18,7 @@
     "build": "tsc",
     "test": "jest",
     "coverage": "jest --coverage",
-    "cli": "node build/cli.js"
+    "cli": "node build/cli/cli.js"
   },
   "keywords": [],
   "author": "Victor Graf",

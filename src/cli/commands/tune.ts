@@ -1,5 +1,5 @@
-import { BloomFilter } from '../filters/bloom'
-import { formatBits, formatCount } from './utils'
+import { BloomFilter } from '../../filters/bloom'
+import { formatBits, formatCount } from '../utils/utils'
 import { Command, Options, Validation, command, metadata, option, param, params } from 'clime'
 
 export class TuneOptions extends Options {
@@ -33,7 +33,8 @@ export class TuneOptions extends Options {
 }
 
 @command({
-  description: 'calculates filter tuning parameters to optimize storage size, element capacity, and error rate'
+  description: 'calculates filter tuning parameters to optimize storage size, element capacity, and error rate',
+  brief:'tune parameters for building a filter'
 })
 export default class extends Command {
   @metadata
