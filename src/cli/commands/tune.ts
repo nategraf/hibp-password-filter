@@ -1,6 +1,6 @@
 import { BloomFilter } from '../../filters/bloom'
 import { formatBits, formatCount, CountArg, BitsArg } from '../utils/utils'
-import { Command, Options, Validation, command, metadata, option, param, params } from 'clime'
+import { Command, Options, Validation, command, metadata, option } from 'clime'
 
 export class TuneOptions extends Options {
   @option({

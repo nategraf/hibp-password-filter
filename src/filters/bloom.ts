@@ -55,8 +55,6 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    *
    * @privateRemarks Equations for optimal parameter settings come from
    * https://en.wikipedia.org/wiki/Bloom_filter#Optimal_number_of_hash_functions
-   *
-   * FIXME: Write tests for this function!
    */
   static populateOptions(options: Partial<BloomFilterOptions>): BloomFilterOptions {
     const { m, k, n, epsilon } = options
