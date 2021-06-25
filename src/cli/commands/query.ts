@@ -28,6 +28,7 @@ export default class extends Command {
     // Assert that the filter file exsits.
     await options.file.assert()
     const filter = await BloomFilter.from(await FileStorage.open(options.file.fullName))
+    const hash = 
 
     // Allocate a mutable
     const filter = await MutableBloomFilter.create(bloomOptions, BufferStorage)
