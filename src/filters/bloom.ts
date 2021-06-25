@@ -150,12 +150,14 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     }
 
     if (defined(n) && defined(epsilon)) {
+      // Because k must be an integrer, we use a two step process of calculating an optimal m, an
+      // optimal k, then a minimal m to ensure e does not exceed the provided value.
       const mOptimal = -(n*Math.log(epsilon)) / Math.pow(Math.log(2), 2)
-      const mCeil = Math.ceil(mOptimal / 8) * 8
+      const kOpt = kOptimal(mOptimal, n)
       return {
         n, epsilon,
-        m: mCeil,
-        k: kOptimal(mCeil, n)
+        m: Math.ceil(mMin(kOpt, n, epsilon) / 8) * 8,
+        k: kOpt,
       }
     }
 
@@ -209,9 +211,10 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
    * a new hash result on each call.
    */
   protected hash(element: Buffer, index: number, counter: number = 0): number {
-    // Produce a SHA1 hash of { index || element || counter }
+    // Produce a SHA1 hash of { index || counter || element  }
     const hash = crypto.createHash('sha1')
     hash.update(Buffer.from([index]))
+    hash.update(Buffer.from([counter]))
     hash.update(element)
     const digest = hash.digest()
 
