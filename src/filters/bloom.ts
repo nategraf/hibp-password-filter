@@ -2,6 +2,20 @@ import { BufferStorage } from './buffer'
 import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
+function readUInt64BE(buffer: Buffer, offset: number = 0): number {
+  // split 64-bit number into two 32-bit parts
+  const left =  buffer.readUInt32BE(offset)
+  const right = buffer.readUInt32BE(offset+4)
+
+  // combine the two 32-bit values
+  const combined = 2**32*left + right
+
+  if (!Number.isSafeInteger(combined)) {
+    throw new Error('Read number value exceeds MAX_SAFE_INTEGER')
+  }
+  return combined
+}
+
 /**
  * Options available when creating a bloom filter.
  *
@@ -17,9 +31,10 @@ export interface BloomFilterOptions {
 /**
  * BloomFilter implements a bloom filter probabilistic set that can answer "maybe in the set" or "definitly not in the set".
  *
- * @remarks Storage layout is { n (4 bytes) || m (4 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
+ * @remarks Storage layout is { n (8 bytes) || m (8 bytes) || k (1 byte) || reserved (3 bytes) || filter bits }
  */
 export class BloomFilter<S extends Storage = Storage> implements Filter {
+  static readonly METADATA_SIZE_BYTES = 20
   protected _n: number
 
   protected constructor(
@@ -71,7 +86,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 
     // Function to find the maximun number of elements to maintain a given error rate.
     const nMax = (m: number, k: number, epsilon: number): number => {
-      let [low, high] = [0, 0xFFFFFFFF]
+      let [low, high] = [0, Number.MAX_SAFE_INTEGER]
       while (low < high) {
         const mid = Math.ceil((low + high) / 2)
         if (this.epsilonWith({m, k, n: mid}) <= epsilon) {
@@ -85,7 +100,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 
     // Function to find the minimum number of bits to maintain a given error rate.
     const mMin = (k: number, n: number, epsilon: number): number => {
-      let [low, high] = [1, 0x100000000]
+      let [low, high] = [1, Number.MAX_SAFE_INTEGER]
       while (low < high) {
         const mid = Math.floor((low + high) / 2)
         if (this.epsilonWith({m: mid, k, n}) <= epsilon) {
@@ -94,7 +109,7 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
           low = mid + 1
         }
       }
-      if (low >= 0x100000000) {
+      if (low >= Number.MAX_SAFE_INTEGER) {
         throw new Error("minimum m value exceeds supported maximum size")
       }
       return low
@@ -171,10 +186,10 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
 
   static async from(storage: Storage): Promise<BloomFilter> {
     // Read the filter metadata from storage.
-    const parameters = await storage.read(0, 12)
-    const n = parameters.readUInt32BE(0)
-    const m = parameters.readUInt32BE(4)
-    const k = parameters.readUInt8(8)
+    const parameters = await storage.read(0, BloomFilter.METADATA_SIZE_BYTES)
+    const n = readUInt64BE(parameters, 0)
+    const m = readUInt64BE(parameters, 8)
+    const k = parameters.readUInt8(16)
 
     return new BloomFilter(storage, n, m, k)
   }
@@ -219,44 +234,46 @@ export class BloomFilter<S extends Storage = Storage> implements Filter {
     const digest = hash.digest()
 
     // Based on Algorithm 4 of https://arxiv.org/pdf/1805.10941.pdf
-    const x = digest.readUInt32BE()
+    // First sample a 53-bit value, then cast it into the correct range.
+    const x = ((digest.readUInt32BE(0) % 2**21) * 2**32) + digest.readUInt32BE(4)
     const r = x % this.m
-    if (x - r > (0x100000000 - this.m)) {
+    if (x - r > (2**53 - this.m)) {
       return this.hash(element, index, counter+1)
     }
     return r
   }
 
   protected storageIndex(bitIndex: number): [number, number] {
-    return [Math.floor(bitIndex / 8) + 12, bitIndex % 8]
+    return [Math.floor(bitIndex / 8) + BloomFilter.METADATA_SIZE_BYTES, bitIndex % 8]
   }
 
   protected async readN(): Promise<void> {
-    this._n = (await this.storage.read(0, 4)).readUInt32BE()
+    this._n = readUInt64BE(await this.storage.read(0, 8))
   }
 }
 
 export class MutableBloomFilter<S extends MutableStorage = MutableStorage> extends BloomFilter<S> implements MutableFilter {
   static async create<Z extends MutableStorage>(options: Partial<BloomFilterOptions>, allocator: StorageAllocator<Z>): Promise<MutableBloomFilter<Z>> {
     const populated = this.populateOptions(options)
-    const size = Math.ceil(populated.m/8) + 12
+    const size = Math.ceil(populated.m/8) + BloomFilter.METADATA_SIZE_BYTES
     const storage = await allocator.alloc(size)
     const filter = new MutableBloomFilter(storage, 0, populated.m, populated.k)
     
     // Write the parameter block to storage.
-    const buffer = Buffer.alloc(5)
-    buffer.writeUInt32BE(populated.m)
-    buffer.writeUInt8(populated.k, 4)
-    await storage.write(4, buffer)
+    const buffer = Buffer.alloc(9)
+    // @ts-ignore:next-line
+    buffer.writeUInt64BE(populated.m)
+    buffer.writeUInt8(populated.k, 8)
+    await storage.write(8, buffer)
 
     return filter
   }
 
   static async from<Z extends MutableStorage>(storage: Z): Promise<MutableBloomFilter<Z>> {
-    const parameters = await storage.read(0, 12)
-    const n = parameters.readUInt32BE(0)
-    const m = parameters.readUInt32BE(4)
-    const k = parameters.readUInt8(8)
+    const parameters = await storage.read(0, BloomFilter.METADATA_SIZE_BYTES)
+    const n = readUInt64BE(parameters, 0)
+    const m = readUInt64BE(parameters, 8)
+    const k = parameters.readUInt8(16)
 
     return new MutableBloomFilter(storage, n, m, k)
   }
@@ -277,8 +294,9 @@ export class MutableBloomFilter<S extends MutableStorage = MutableStorage> exten
   }
 
   protected async writeN(): Promise<void> {
-    const buffer = Buffer.alloc(4)
-    buffer.writeUInt32BE(this.n)
+    const buffer = Buffer.alloc(8)
+    // @ts-ignore:next-line
+    buffer.writeUInt64BE(this.n)
     await this.storage.write(0, buffer)
   }
 }
