@@ -2,6 +2,7 @@ import { BufferStorage } from './buffer'
 import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
+// TODO(victor): Clean up these functions, they are gross.
 function readUInt64BE(buffer: Buffer, offset: number = 0): number {
   // split 64-bit number into two 32-bit parts
   const left =  buffer.readUInt32BE(offset)
@@ -14,6 +15,16 @@ function readUInt64BE(buffer: Buffer, offset: number = 0): number {
     throw new Error('Read number value exceeds MAX_SAFE_INTEGER')
   }
   return combined
+}
+
+function writeUInt64BE(buffer: Buffer, value: number, offset: number = 0) {
+  if (!Number.isSafeInteger(value)) {
+    throw new Error('Cannot write value which exceeds MAX_SAFE_INTEGER')
+  }
+
+  // split 64-bit number into two 32-bit parts
+  buffer.writeUInt32BE(Math.floor(value / 2**32), offset)
+  buffer.writeUInt32BE(value % 2**32, offset+4)
 }
 
 /**
@@ -261,8 +272,7 @@ export class MutableBloomFilter<S extends MutableStorage = MutableStorage> exten
     
     // Write the parameter block to storage.
     const buffer = Buffer.alloc(9)
-    // @ts-ignore:next-line
-    buffer.writeUInt64BE(populated.m)
+    writeUInt64BE(buffer, populated.m)
     buffer.writeUInt8(populated.k, 8)
     await storage.write(8, buffer)
 
@@ -295,8 +305,7 @@ export class MutableBloomFilter<S extends MutableStorage = MutableStorage> exten
 
   protected async writeN(): Promise<void> {
     const buffer = Buffer.alloc(8)
-    // @ts-ignore:next-line
-    buffer.writeUInt64BE(this.n)
+    writeUInt64BE(buffer, this.n)
     await this.storage.write(0, buffer)
   }
 }
