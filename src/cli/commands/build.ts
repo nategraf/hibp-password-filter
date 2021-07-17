@@ -2,6 +2,7 @@ import { MutableBloomFilter } from '../../filters/bloom'
 import { BufferStorage } from '../../filters/buffer'
 import { HibpOrderedByCountReader } from '../../hibp/reader'
 import { CountArg, BitsArg } from '../utils/utils'
+import { SingleBar } from 'cli-progress'
 import { Command, ExpectedError, Options, Validation, Castable, command, metadata, option } from 'clime'
 import { promises as fs } from 'fs'
 
@@ -70,9 +71,21 @@ export default class extends Command {
     const filter = await MutableBloomFilter.create(bloomOptions, BufferStorage)
     const input = await fs.open(options.in.fullName, 'r')
 
+    // Create a progress bar to show the user. Counts up to the capacity of the filter.
+    let progress: SingleBar|undefined
+    if (bloomOptions.n !== undefined) {
+      progress = new SingleBar({
+        fps: 1,
+        barCompleteChar: '#',
+        barIncompleteChar: '.'
+      })
+      progress.start(bloomOptions.n, 0)
+    }
+
+    let earlyStop = false
     for await (const { entry, error } of HibpOrderedByCountReader.read(input)) {
       if (bloomOptions.n !== undefined && filter.n >= bloomOptions.n) {
-        console.warn(`Reached max capacity of ${bloomOptions.n}, skipping remaining entries`)
+        earlyStop = true
         break
       }
       if (error !== undefined) {
@@ -83,7 +96,15 @@ export default class extends Command {
       }
 
       await filter.add(entry.hash)
+      progress?.increment(1)
     }
+
+    progress?.stop()
+
+    if (earlyStop) {
+      console.warn(`Reached max capacity of ${bloomOptions.n}, skipping remaining entries`)
+    }
+
     console.log(`Built a bloom filter with ${filter.n} entries and an error rate of ${filter.epsilon()}`)
 
     // Write the contents of the file in memory to disk.

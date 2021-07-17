@@ -18,7 +18,7 @@ export enum ParseError {
  */
 export class HibpOrderedByCountReader {
   // Chunk size in bytes controls how many bytes are read from the stream at a time.
-  private static readonly chunkSize = 16 * 1024
+  private static readonly chunkSize = 16 * 1024 // 16 KiB
 
   /**
   * Parse reads a single entry from the head of the buffer, then returns a
