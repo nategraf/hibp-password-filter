@@ -48,8 +48,8 @@ export class BuildOptions extends Options {
 }
 
 @command({
-  description: 'TODO',
-  brief:'TODO'
+  description: 'given a HIBP password list parameters for the filter, construct a password filter',
+  brief:'build a filter from a list of password hashes'
 })
 export default class extends Command {
   @metadata

@@ -13,8 +13,8 @@ export class QueryOptions extends Options {
 }
 
 @command({
-  description: 'TODO',
-  brief:'TODO'
+  description: 'check to see if the provided password is in the filter',
+  brief:'query a constructed filter for a password'
 })
 export default class extends Command {
   @metadata
