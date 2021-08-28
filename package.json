@@ -13,7 +13,7 @@
     "build": "tsc",
     "test": "jest",
     "coverage": "jest --coverage",
-    "cli": "node build/cli/cli.js"
+    "cli": "yarn --silent --cwd cli cli"
   },
   "keywords": [],
   "author": "Victor Graf",
