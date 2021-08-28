@@ -1,6 +1,5 @@
-import { BloomFilter } from '../../filters/bloom'
-import { FileStorage } from '../../filters/file'
-import { Command, ExpectedError, Options, Validation, Castable, command, metadata, option, param } from 'clime'
+import { BloomFilter, FileStorage  } from '@victorgraf/password-filters'
+import { Command, Options, Castable, command, metadata, option, param } from 'clime'
 import * as crypto from 'crypto'
 
 export class QueryOptions extends Options {

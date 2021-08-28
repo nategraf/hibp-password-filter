@@ -1,4 +1,4 @@
-import { BloomFilter } from '../../filters/bloom'
+import { BloomFilter } from '@victorgraf/password-filters'
 import { formatBits, formatCount, CountArg, BitsArg } from '../utils/utils'
 import { Command, Options, Validation, command, metadata, option } from 'clime'
 

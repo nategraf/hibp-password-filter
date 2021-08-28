@@ -1,6 +1,5 @@
-import { MutableBloomFilter } from '../../filters/bloom'
-import { BufferStorage } from '../../filters/buffer'
-import { HibpOrderedByCountReader } from '../../hibp/reader'
+import { BufferStorage, MutableBloomFilter } from '@victorgraf/password-filters'
+import { HibpOrderedByCountReader } from '@victorgraf/hibp-reader'
 import { CountArg, BitsArg } from '../utils/utils'
 import { SingleBar } from 'cli-progress'
 import { Command, ExpectedError, Options, Validation, Castable, command, metadata, option } from 'clime'

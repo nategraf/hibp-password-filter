@@ -1,16 +1,18 @@
 {
   "name": "@victorgraf/password-filter-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI for building and querying password filters locally",
-  "main": "index.js",
+  "main": "cli.js",
+  "bin": {
+    "hibp-password-filter": "dist/cli.js"
+  },
   "license": "MIT",
-  "private": false,
   "dependencies": {
-    "cli-progress": "^3.9.0",
-    "clime": "^0.5.14",
-    "chalk": "^4.1.1",
+    "@victorgraf/hibp-reader": "1.0.0",
     "@victorgraf/password-filters": "1.0.0",
-    "@victorgraf/hibp-reader": "1.0.0"
+    "chalk": "^4.1.1",
+    "cli-progress": "^3.9.0",
+    "clime": "^0.5.14"
   },
   "devDependencies": {
     "@types/cli-progress": "^3.9.2",
@@ -25,7 +27,7 @@
     "build": "tsc",
     "test": "jest",
     "coverage": "jest --coverage",
-    "cli": "node build/cli/cli.js"
+    "cli": "node dist/cli.js"
   },
   "repository": {
     "type": "git",
