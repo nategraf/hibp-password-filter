@@ -10,7 +10,10 @@
     "hibp"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "yarn build:filters && yarn build:hibp && yarn build:cli",
+    "build:cli": "yarn --cwd cli build",
+    "build:filters": "yarn --cwd filters build",
+    "build:hibp": "yarn --cwd hibp build",
     "test": "jest",
     "coverage": "jest --coverage",
     "cli": "yarn --silent --cwd cli cli"
