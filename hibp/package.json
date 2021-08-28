@@ -2,7 +2,11 @@
   "name": "@victorgraf/hibp-reader",
   "version": "1.0.0",
   "description": "Reader for parsing HIBP password hash files",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
   "license": "MIT",
   "private": false,
   "devDependencies": {

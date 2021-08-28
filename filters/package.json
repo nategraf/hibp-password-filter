@@ -2,7 +2,11 @@
   "name": "@victorgraf/password-filters",
   "version": "1.0.0",
   "description": "Probableistic set for use in password filtering",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
   "license": "MIT",
   "private": false,
   "devDependencies": {

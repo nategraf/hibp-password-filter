@@ -1,4 +1,4 @@
-import { HibpHashCountEntry, HibpOrderedByCountReader, ParseError, BufferStream, Stream } from './reader'
+import { HibpHashCountEntry, HibpOrderedByCountReader, ParseError, BufferStream } from './reader'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 

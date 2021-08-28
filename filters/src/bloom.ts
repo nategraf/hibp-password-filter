@@ -1,4 +1,3 @@
-import { BufferStorage } from './buffer'
 import { StorageAllocator, Filter, MutableFilter, MutableStorage, Storage } from './filter'
 import * as crypto from 'crypto'
 
