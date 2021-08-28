@@ -1,0 +1,38 @@
+{
+  "name": "@victorgraf/password-filter-cli",
+  "version": "1.0.0",
+  "description": "CLI for building and querying password filters locally",
+  "main": "index.js",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "cli-progress": "^3.9.0",
+    "clime": "^0.5.14",
+    "chalk": "^4.1.1",
+    "@victorgraf/password-filters": "1.0.0",
+    "@victorgraf/hibp-reader": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.9.2",
+    "@types/jest": "^26.0.22",
+    "@types/node": "^14.14.27",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.5.4",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.5"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "coverage": "jest --coverage",
+    "cli": "node build/cli/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/nategraf/hibp-password-filter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nategraf/hibp-password-filter/issues"
+  },
+  "homepage": "https://github.com/nategraf/hibp-password-filter#readme"
+}

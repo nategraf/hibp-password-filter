@@ -1,0 +1,29 @@
+{
+  "name": "@victorgraf/password-filters",
+  "version": "1.0.0",
+  "description": "Probableistic set for use in password filtering",
+  "main": "index.js",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "@types/jest": "^26.0.22",
+    "@types/node": "^14.14.27",
+    "jest": "^26.6.3",
+    "ts-jest": "^26.5.4",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.5"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "coverage": "jest --coverage"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/nategraf/hibp-password-filter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nategraf/hibp-password-filter/issues"
+  },
+  "homepage": "https://github.com/nategraf/hibp-password-filter#readme"
+}
