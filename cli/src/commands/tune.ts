@@ -31,7 +31,21 @@ export class TuneOptions extends Options {
 }
 
 @command({
-  description: 'calculates filter tuning parameters to optimize storage size, element capacity, and error rate',
+  description: `
+Calculates filter tuning parameters to optimize storage size, element capacity, and error rate.
+Use this command to determine remaining parameters given your requirements.
+
+Examples:
+
+// Determine the storage requirement for a filter with 100k passwords and an error rate of 1%.
+tune -n 100k -e 0.01
+
+// Determine the error rate of a filter with 1M passwords and size of 5 MiB.
+tune -n 1M -m 5MiB
+
+// Determine how many passwords a 100 KiB filter can hold with a 1% error rate.
+tune -m '100 KiB' -e 0.01
+`.trim(),
   brief:'tune parameters for building a filter'
 })
 export default class extends Command {
